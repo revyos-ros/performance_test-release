@@ -40,9 +40,18 @@ public:
       m_subs.push_back(performance_test::ApexOsEntityFactory::get_subscriber(
           m_ec.msg_name, m_sub_stats.at(i), m_ec));
     }
+
     for (uint32_t i = 0; i < m_ec.number_of_publishers; ++i) {
       m_pubs.push_back(performance_test::ApexOsEntityFactory::get_publisher(
           m_ec.msg_name, m_pub_stats.at(i), m_ec));
+    }
+
+    for (uint32_t i = 0; i < m_ec.number_of_publishers; ++i) {
+      m_pubs[i]->prepare();
+    }
+
+    for (uint32_t i = 0; i < m_ec.number_of_subscribers; ++i) {
+      m_subs[i]->prepare();
     }
   }
 
@@ -115,7 +124,7 @@ public:
       throw std::invalid_argument(
               "Intra-thread execution requires at least one subscriber.");
     }
-    if (!ec.is_zero_copy_transfer) {
+    if (!ec.use_loaned_samples) {
       throw std::invalid_argument(
               "Intra-thread execution only works with loaned messages (zero copy).");
     }
