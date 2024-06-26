@@ -29,6 +29,7 @@
 #include "rclcpp_common/ros2_qos_adapter.hpp"
 #include "performance_test/experiment_metrics/publisher_stats.hpp"
 #include "performance_test/experiment_metrics/subscriber_stats.hpp"
+#include "performance_test/utilities/message_initializer.hpp"
 
 namespace performance_test
 {
@@ -43,7 +44,11 @@ public:
         m_stats(stats),
         m_publisher(node.create_publisher<MsgType>(
             ec.topic_name + ec.pub_topic_postfix(),
-            ROS2QOSAdapter(ec.qos).get()))
+            ROS2QOSAdapter(ec.qos).get())),
+        m_message_initializer(ec)
+  {}
+
+  void prepare()
   {
     if (m_ec.expected_num_subs > 0) {
       m_publisher->wait_for_matched(m_ec.expected_num_subs,
@@ -53,89 +58,34 @@ public:
 
 private:
   void execute_impl() override {
-    if (m_ec.is_zero_copy_transfer) {
+    if (m_ec.use_loaned_samples) {
       if (!m_publisher->can_loan_messages()) {
         throw std::runtime_error(
             "RMW implementation does not support zero copy!");
       }
       auto borrowed_message{m_publisher->borrow_loaned_message()};
-      init_msg(*borrowed_message, m_stats.next_sample_id());
+      m_message_initializer.init_msg(
+        *borrowed_message,
+        m_timestamp_provider,
+        m_stats.next_sample_id());
       m_publisher->publish(std::move(borrowed_message));
       m_stats.on_message_sent();
     } else {
-      init_msg(m_data, m_stats.next_sample_id());
+      m_message_initializer.init_msg(
+        m_data,
+        m_timestamp_provider,
+        m_stats.next_sample_id());
       m_publisher->publish(m_data);
       m_stats.on_message_sent();
     }
   }
 
-  inline
-  void init_msg(
-    typename MsgType::NonFlatType & msg,
-    std::uint64_t sample_id)
-  {
-    init_bounded_sequence(msg);
-    init_unbounded_sequence(msg);
-    init_unbounded_string(msg);
-    msg.id = sample_id;
-    msg.time = now_int64_t();
-  }
-
-  inline
-  void init_msg(
-    typename MsgType::FlatType & msg,
-    std::uint64_t sample_id)
-  {
-    init_bounded_sequence(msg);
-    init_unbounded_sequence(msg);
-    init_unbounded_string(msg);
-    msg.id = sample_id;
-    msg.time = now_int64_t();
-  }
-
-  template<typename T>
-  inline
-  std::enable_if_t<MsgTraits::has_bounded_sequence<T>::value, void>
-  init_bounded_sequence(T & msg)
-  {
-    msg.bounded_sequence.resize(msg.bounded_sequence.capacity());
-  }
-
-  template<typename T>
-  inline
-  std::enable_if_t<!MsgTraits::has_bounded_sequence<T>::value, void>
-  init_bounded_sequence(T &) {}
-
-  template<typename T>
-  inline
-  std::enable_if_t<MsgTraits::has_unbounded_sequence<T>::value, void>
-  init_unbounded_sequence(T & msg)
-  {
-    msg.unbounded_sequence.resize(m_ec.unbounded_msg_size);
-  }
-
-  template<typename T>
-  inline
-  std::enable_if_t<!MsgTraits::has_unbounded_sequence<T>::value, void>
-  init_unbounded_sequence(T &) {}
-
-  template<typename T>
-  inline
-  std::enable_if_t<MsgTraits::has_unbounded_string<T>::value, void>
-  init_unbounded_string(T & msg)
-  {
-    msg.unbounded_string.resize(m_ec.unbounded_msg_size);
-  }
-
-  template<typename T>
-  inline
-  std::enable_if_t<!MsgTraits::has_unbounded_string<T>::value, void>
-  init_unbounded_string(T &) {}
-
   MsgType m_data;
   const ExperimentConfiguration &m_ec;
   PublisherStats &m_stats;
   const typename rclcpp::Publisher<MsgType>::SharedPtr m_publisher;
+  MessageInitializer m_message_initializer;
+  PublisherTimestampProvider m_timestamp_provider;
 };
 
 template <class MsgType>
@@ -156,7 +106,10 @@ public:
           m_ec.topic_name + m_ec.pub_topic_postfix(),
           ROS2QOSAdapter(m_ec.qos).get()));
     }
+  }
 
+  void prepare()
+  {
     if (this->m_ec.expected_num_pubs > 0) {
       m_subscription->wait_for_matched(
           this->m_ec.expected_num_pubs,
@@ -211,6 +164,7 @@ public:
   get_publisher_item() {
     return nullptr;
   }
+  virtual void prepare() {}
 };
 
 class ApexOsSubscriberEntity {
@@ -219,6 +173,7 @@ public:
   get_subscriber_item() {
     return nullptr;
   }
+  virtual void prepare() {}
 };
 
 template <typename MsgType> class ApexOsPublisher : public ApexOsPublisherEntity
@@ -234,6 +189,11 @@ public:
   get_publisher_item() override
   {
     return m_publisher_item;
+  }
+
+  void prepare() override
+  {
+    m_publisher_item->prepare();
   }
 
 private:
@@ -255,6 +215,11 @@ public:
   get_subscriber_item() override
   {
     return m_subscriber_item;
+  }
+
+  void prepare() override
+  {
+    m_subscriber_item->prepare();
   }
 
 private:
