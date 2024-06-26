@@ -1,3 +1,4 @@
+release_repo_url: git@github.com:revyos-ros/performance_test-release
 tracks:
   eloquent:
     actions:
