@@ -1,3 +1,29 @@
+## performance_test (jazzy) - 2.2.0-1
+
+The packages in the `performance_test` repository were released into the `jazzy` distro by running `/home/z572/gits/revyos-ros/venv/bin/bloom-release -r jazzy performance_test --override-release-repository-push-url git@github.com:revyos-ros/performance_test-release` on `Wed, 26 Jun 2024 08:34:36 -0000`
+
+The `performance_test` package was released.
+
+These packages were explicitly ignored:
+- `performance_report`
+
+Version of package(s) in repository `performance_test`:
+
+- upstream repository: https://gitlab.com/ApexAI/performance_test.git
+- release repository: https://github.com/revyos-ros/performance_test-release.git
+- rosdistro version: `2.0.0-2`
+- old version: `2.0.0-2`
+- new version: `2.2.0-1`
+
+Versions of tools used:
+
+- bloom version: `0.12.0`
+- catkin_pkg version: `1.0.0`
+- rosdep version: `0.22.2`
+- rosdistro version: `0.9.0`
+- vcstools version: `0.1.42`
+
+
 ## performance_test (rolling) - 2.0.0-1
 
 The packages in the `performance_test` repository were released into the `rolling` distro by running `/usr/bin/bloom-release --track rolling --rosdistro rolling performance_test` on `Tue, 19 Mar 2024 21:26:43 -0000`
