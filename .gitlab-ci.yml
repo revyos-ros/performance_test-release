@@ -191,16 +191,14 @@ build_fastrtps_library:
   stage: build_artifacts
   image: osrf/ros:rolling-desktop
   script:
-    - source /opt/ros/rolling/setup.bash
     - apt-get update
     - apt-get install -y default-jdk cmake g++ python3-pip wget git libasio-dev libtinyxml2-dev libssl-dev libp11-dev libengine-pkcs11-openssl
-    - rosdep update
     - apt remove -y ros-rolling-fastrtps
     - mkdir -p Fast-DDS
     - cd Fast-DDS
     - git clone https://github.com/eProsima/foonathan_memory_vendor.git -b v1.2.1
     - mkdir foonathan_memory_vendor/build
-    - cd foonathan_memory_vendor/build && \
+    - cd foonathan_memory_vendor/build
     - cmake .. -DCMAKE_INSTALL_PREFIX=/opt/Fast-DDS -DBUILD_SHARED_LIBS=ON
     - cmake --build . --target install
 
@@ -213,8 +211,11 @@ build_fastrtps_library:
 
     - cd ../../
     - git clone https://github.com/eProsima/Fast-DDS.git -b v2.6.0
-    - mkdir Fast-DDS/build
-    - cd Fast-DDS/build
+    - cd Fast-DDS
+    - cp ${CI_PROJECT_DIR}/patches/fast-dds-gcc-13.patch .
+    - git apply fast-dds-gcc-13.patch
+    - mkdir build
+    - cd build
     - cmake .. -DCMAKE_INSTALL_PREFIX=/opt/Fast-DDS -DCMAKE_PREFIX_PATH=/opt/Fast-DDS
     - cmake --build . --target install
     - tar cfz opt-fastdds-v1.2.1.tar.gz /opt/Fast-DDS
@@ -233,31 +234,6 @@ build_fastrtps_library:
 .build_with_only_array_msgs:
   variables:
     CMAKE_ARGS_ENABLE_MSGS: '-DENABLE_MSGS_STRUCT=OFF -DENABLE_MSGS_POINT_CLOUD=OFF'
-
-build_cross_image:
-  stage: build
-  image: docker
-  services:
-    - docker:dind
-  extends:
-    - .build_with_only_array_msgs
-  script:
-    - '
-      docker build
-          --build-arg PERFORMANCE_TEST_DOCKER_ARCH=arm64v8
-          --build-arg PERFORMANCE_TEST_TARGET_ARCH=aarch64
-          -t performance_test_cross
-          -f tools/Dockerimage.crossbuild
-          .
-      '
-    - '
-      docker run -t -v `pwd`:`pwd` -w `pwd`
-          --rm performance_test_cross
-          sh -c "colcon build --merge-install --cmake-args
-              -DCMAKE_TOOLCHAIN_FILE=`pwd`/tools/toolchain.cmake
-              -DBUILD_TESTING=OFF
-              ${CMAKE_ARGS_ENABLE_MSGS}"
-      '
 
 .build_rclcpp:
   stage: build
@@ -507,6 +483,7 @@ build_fastrtps:
   script:
     - source /opt/ros/rolling/setup.bash
     - apt-get update
+    - apt install -y openjdk-11-jdk
 
     - rosdep update
     - rosdep install --from-paths performance_test --ignore-src -y
@@ -589,7 +566,7 @@ test_performance_report:
   script:
     - apt-get update
     - sudo apt-get install -y python3-pip
-    - python3 -m pip install bokeh==2.4.3 selenium pandas
+    - python3 -m pip install bokeh==2.4.3 selenium pandas --break-system-packages
     - rosdep update --include-eol-distros
     - rosdep install --from-paths performance_test --ignore-src -y
     - tar -xzf opt.tar.gz -C /
@@ -915,17 +892,17 @@ test_plotter:
   stage: test
   image: osrf/ros:rolling-desktop
   script:
-    - cd performance_test/helper_scripts/apex_performance_plotter
+    - cd plotter
     - apt-get update
     - apt-get install -y python3-pip
-    - pip3 install .
+    - pip3 install . --break-system-packages
     - perfplot --help
 
 test_security_fast_dds:
   stage: test
-  image: osrf/ros:rolling-desktop
+  image: osrf/ros:iron-desktop
   needs:
-    - build_rclcpp_rolling
+    - build_rclcpp_iron
   variables:
     ROS_DOMAIN_ID: 40
   script:
@@ -952,14 +929,14 @@ test_security_fast_dds:
 
 test_security_cyclone_dds:
   stage: test
-  image: osrf/ros:rolling-desktop
+  image: osrf/ros:iron-desktop
   needs:
-    - build_rclcpp_rolling
+    - build_rclcpp_iron
   variables:
     ROS_DOMAIN_ID: 41
   script:
     - apt-get update
-    - apt-get install -y ros-rolling-rmw-cyclonedds-cpp
+    - apt-get install -y ros-iron-rmw-cyclonedds-cpp
     - rosdep update
     - rosdep install --from-paths performance_test --ignore-src -y
     - tar -xzf opt.tar.gz -C /
