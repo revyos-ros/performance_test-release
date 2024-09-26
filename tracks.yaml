@@ -1,4 +1,4 @@
-release_repo_url: git@github.com:revyos-ros/performance_test-release
+release_repo_url: git@github.com:revyos-ros/performance_test-release.git
 tracks:
   eloquent:
     actions:
